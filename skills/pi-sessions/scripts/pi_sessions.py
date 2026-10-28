@@ -142,15 +142,19 @@ def session_files(cwd: str, scope: str) -> list[Path]:
 
 
 def resolve(ref: str, args) -> Path:
-    path = Path(ref).expanduser()
-    if path.is_file():
-        return path
+    for candidate in (Path(ref).expanduser(), Path(ref + ".jsonl").expanduser()):
+        if candidate.is_file():
+            return candidate
     if ref == "latest":
         files = session_files(args.cwd, "cwd")
-    else:
-        files = [f for f in session_files(args.cwd, "all") if ref in f.name]
+    else:  # a session id (full or unique prefix) is global: no --cwd needed
+        every = session_files(args.cwd, "all")
+        files = [f for f in every if f.stem.partition("_")[2] == ref] or [f for f in every if ref in f.name]
     if not files:
         sys.exit(f"no pi session matches {ref!r} (looked under {SESSION_ROOT})")
+    if len(files) > 1 and ref != "latest":
+        listing = "\n".join(f"  {f.stem.partition('_')[2]}  {f.parent.name}" for f in files[:8])
+        sys.exit(f"{ref!r} matches {len(files)} sessions; use a longer id:\n{listing}")
     return files[0]
 
 
@@ -309,7 +313,7 @@ def main() -> None:
     p.add_argument("-n", "--limit", type=int, default=10)
     p.set_defaults(fn=cmd_list)
 
-    session_help = "path, 'latest', or a fragment of the filename/id"
+    session_help = "session id (full or unique prefix), 'latest', or a file path"
     p = sub.add_parser("toc", help="one block per user turn")
     p.add_argument("session", help=session_help)
     p.add_argument("--width", type=int, default=160)

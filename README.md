@@ -19,6 +19,7 @@ Ask in plain language:
 - "Summarize my last pi session in this repo"
 - "Find the pi session where we discussed the webhook retry"
 - "Continue the work from my latest pi session"
+- `/pi-sessions 0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b` (go straight to that session; a unique prefix like `0192a3b4` works too)
 
 Or run the script directly:
 
