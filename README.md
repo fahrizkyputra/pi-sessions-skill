@@ -19,6 +19,7 @@ Ask in plain language:
 - "Summarize my last pi session in this repo"
 - "Find the pi session where we discussed the webhook retry"
 - "Continue the work from my latest pi session"
+- "Hand this back to pi" (after working on it in Claude Code)
 - `/pi-sessions 0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b` (go straight to that session; a unique prefix like `0192a3b4` works too)
 
 Or run the script directly:
@@ -38,8 +39,22 @@ python3 skills/pi-sessions/scripts/pi_sessions.py handoff latest
 | `show` | Transcript of chosen turns, optionally with tool calls and thinking |
 | `search` | Regex hits in messages and compaction summaries, deduplicated across forks |
 | `handoff` | Markdown brief: pi's own compaction summary, requests, files edited, where it stopped |
+| `to-pi` | Saves Claude Code's report and prints a `pi --fork <session> @brief.md` command to resume in pi |
 
 Scope defaults to the current directory; add `--subdirs` for sub-project folders or `--all` for every project. Set `PI_CODING_AGENT_SESSION_DIR` if your sessions live elsewhere.
+
+## Round trip: pi → Claude Code → pi
+
+1. Claude Code reads the pi session (`handoff`) and continues the work.
+2. Say "hand this back to pi". Claude writes a report of what changed and runs `to-pi`, which prints a command like:
+
+   ```bash
+   cd /path/to/project && pi --fork <session-file> @/tmp/pi-handoff-<id>.md "Continue from the Claude Code handoff"
+   ```
+
+3. Run it in a terminal. pi forks the original session (full history, new file) and opens with the report as the first message. The original session is never modified.
+
+Requires pi 1.4+ (`--fork`, `@file`).
 
 ## Notes
 

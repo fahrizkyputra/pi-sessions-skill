@@ -11,8 +11,11 @@ import argparse
 import json
 import os
 import re
+import shlex
 import signal
 import sys
+import tempfile
+import time
 from collections import Counter
 from pathlib import Path
 
@@ -296,6 +299,28 @@ def cmd_handoff(args) -> None:
             print(f"ENDED ON ERROR: {squash(final.get('errorMessage', ''), 300)}")
 
 
+def cmd_to_pi(args) -> None:
+    src = resolve(args.session, args)
+    s = Session(src)
+    brief = sys.stdin.read() if args.brief == "-" else Path(args.brief).expanduser().read_text(encoding="utf-8")
+    if not brief.strip():
+        sys.exit("empty brief: write what changed since the session ended, then retry")
+    sid = s.header.get("id", src.stem.partition("_")[2])
+    body = (
+        f"# Handoff from Claude Code\n\nSession `{sid}` ({s.name or 'unnamed'}) continued in Claude Code after you stopped. "
+        "Its report follows. Treat it as a status report: check the repo (`git status`, the files named) before acting.\n\n"
+        f"{brief.strip()}\n"
+    )
+    out = Path(tempfile.gettempdir()) / f"pi-handoff-{sid[:8]}-{time.strftime('%Y%m%d-%H%M%S')}.md"
+    fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(body)
+    cwd = s.header.get("cwd") or args.cwd
+    print(f"brief written: {out}\noriginal session untouched: {src}\n")
+    print("Run in a separate terminal (pi forks the original into a new session):")
+    print(f"  cd {shlex.quote(cwd)} && pi --fork {shlex.quote(str(src))} @{shlex.quote(str(out))} {shlex.quote(args.message)}")
+
+
 def main() -> None:
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # quiet `| head`
     parser = argparse.ArgumentParser(description=__doc__)
@@ -340,6 +365,12 @@ def main() -> None:
     p.add_argument("--files", type=int, default=25)
     p.add_argument("--summary-chars", type=int, default=6000)
     p.set_defaults(fn=cmd_handoff)
+
+    p = sub.add_parser("to-pi", help="prepare a fork command that resumes the session in pi with Claude Code's report")
+    p.add_argument("session", help=session_help)
+    p.add_argument("--brief", default="-", help="markdown file with what changed since, or '-' for stdin")
+    p.add_argument("--message", default="Lanjutkan dari handoff Claude Code di atas. Verifikasi kondisi repo dulu.")
+    p.set_defaults(fn=cmd_to_pi)
 
     args = parser.parse_args()
     args.fn(args)
